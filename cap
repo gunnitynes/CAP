@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+"""CAP link manager.
+
+  cap add <Name> <gamma link | embed code | id>   add or update a link, publish it
+  cap rm <Name>                                   remove a link
+  cap ls                                          list links
+"""
+import json, os, re, subprocess, sys
+
+ROOT = os.path.dirname(os.path.realpath(__file__))
+LINKS = os.path.join(ROOT, "links.json")
+SITE = "https://gunnitynes.github.io/CAP/"
+
+
+def load():
+    with open(LINKS) as f:
+        return json.load(f)
+
+
+def save(links, msg):
+    with open(LINKS, "w") as f:
+        json.dump(dict(sorted(links.items(), key=lambda kv: kv[0].lower())), f, indent=2)
+        f.write("\n")
+    git = lambda *a: subprocess.run(["git", "-C", ROOT, *a], check=True)
+    git("add", "links.json")
+    git("commit", "-qm", msg)
+    git("push", "-q")
+
+
+def gamma_id(text):
+    src = re.search(r'src=["\']([^"\']+)', text)
+    url = src.group(1) if src else text.strip()
+    m = re.search(r"gamma\.app/(?:embed|docs|public|present)/([^/?#\s]+)", url, re.I)
+    if m:
+        return m.group(1).split("-")[-1].lower()
+    if re.fullmatch(r"[a-z0-9]{8,}", url, re.I):
+        return url.lower()
+    sys.exit("That doesn't look like a Gamma link.")
+
+
+def main(argv):
+    if len(argv) >= 1 and argv[0] == "ls":
+        for name, gid in load().items():
+            print(f"{SITE}{name}/   ({gid})")
+    elif len(argv) == 3 and argv[0] == "add":
+        name = re.sub(r"[^A-Za-z0-9]+", "-", argv[1]).strip("-")
+        links = load()
+        for n in [n for n in links if n.lower() == name.lower()]:
+            del links[n]
+        links[name] = gamma_id(argv[2])
+        save(links, f"Link {name}")
+        print(f"{SITE}{name}/  (live in about a minute)")
+    elif len(argv) == 2 and argv[0] == "rm":
+        links = load()
+        hits = [n for n in links if n.lower() == argv[1].lower()]
+        if not hits:
+            sys.exit(f"No link named {argv[1]}")
+        for n in hits:
+            del links[n]
+        save(links, f"Remove {argv[1]}")
+        print(f"Removed {hits[0]}")
+    else:
+        print(__doc__.strip())
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
