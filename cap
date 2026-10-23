@@ -13,6 +13,7 @@ SITE = "https://gunnitynes.github.io/CAP/"
 
 
 def load():
+    subprocess.run(["git", "-C", ROOT, "pull", "-q", "--rebase"], check=True)
     with open(LINKS) as f:
         return json.load(f)
 
@@ -44,6 +45,8 @@ def main(argv):
             print(f"{SITE}{name}/   ({gid})")
     elif len(argv) == 3 and argv[0] == "add":
         name = re.sub(r"[^A-Za-z0-9]+", "-", argv[1]).strip("-")
+        if name.lower() == "admin":
+            sys.exit("\"admin\" is reserved.")
         links = load()
         for n in [n for n in links if n.lower() == name.lower()]:
             del links[n]
