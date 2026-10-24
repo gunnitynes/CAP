@@ -38,6 +38,18 @@
     f.src = "https://gamma.app/embed/" + id;
     f.allow = "fullscreen";
     f.setAttribute("allowfullscreen", "");
+
+    // Gamma sits behind Cloudflare. When a visitor gets a bot check, the check page
+    // refuses to be framed ("gamma.app refused to connect"). A working embed posts
+    // "[iFrameResizerChild]Ready" to us; if that never comes, open the doc on Gamma
+    // itself, where the check can run.
+    let ready = false, timer;
+    const fallback = () => { if (!ready) location.replace(f.src); };
+    addEventListener("message", e => {
+      if (e.origin === "https://gamma.app") { ready = true; clearTimeout(timer); }
+    });
+    f.addEventListener("load", () => { clearTimeout(timer); timer = setTimeout(fallback, 4000); });
+    timer = setTimeout(fallback, 20000);
     document.body.appendChild(f);
   }
 
