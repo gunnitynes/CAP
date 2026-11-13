@@ -77,18 +77,25 @@
     f.setAttribute("allowfullscreen", "");
 
     // Gamma sits behind Cloudflare. When a visitor gets a bot check, the check page
-    // refuses to be framed ("gamma.app refused to connect"). A working embed posts
-    // "[iFrameResizerChild]Ready" to us; if that never comes, open the doc on Gamma
-    // itself, where the check can run.
+    // refuses to be framed ("gamma.app refused to connect"), and we open the doc on
+    // Gamma itself, where the check can run. A working embed is recognised by its own
+    // child frames (readable cross-origin; a refused frame has none) or any message
+    // from Gamma. Gamma no longer sends a "ready" message of its own, and the Intercom
+    // one it does send is often removed by ad-blockers, so neither can be required.
     let ready = false, timer;
-    const fallback = () => { if (!ready) location.replace(f.src); };
-    addEventListener("message", e => {
-      if (e.origin !== "https://gamma.app" || ready) return;
-      ready = true; clearTimeout(timer);
-      // give the first card a moment to paint before revealing
+    const reveal = () => {
+      if (ready) return;
+      ready = true; clearTimeout(timer); clearInterval(poll);
       setTimeout(() => ld.classList.add("done"), 150);
+    };
+    const childFrames = () => { try { return f.contentWindow.length; } catch (e) { return 0; } };
+    const poll = setInterval(() => { if (childFrames() > 0) reveal(); }, 100);
+    const fallback = () => { if (!ready) location.replace(f.src); };
+    addEventListener("message", e => { if (e.origin === "https://gamma.app") reveal(); });
+    f.addEventListener("load", () => {
+      if (childFrames() > 0) return reveal();
+      clearTimeout(timer); timer = setTimeout(fallback, 2500);
     });
-    f.addEventListener("load", () => { clearTimeout(timer); timer = setTimeout(fallback, 4000); });
     timer = setTimeout(fallback, 20000);
     document.body.appendChild(f);
   }
